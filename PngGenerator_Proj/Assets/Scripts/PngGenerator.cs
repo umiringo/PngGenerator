@@ -65,8 +65,8 @@ public class PngGenerator : MonoBehaviour
     private int height = 1536;
     void Start()
     {
-       // GenerateResource("E:/Projects/PngGenerator/Input/test/block.png", "E:/Projects/PngGenerator/Input/test/line.png");
-       RemoveAllAlpha("E:/Projects/PngGenerator/Input/test2/line.png");
+       GenerateResourceNew("/Users/umiringo/Project/PngGenerator/Input/test/line.png");
+       //RemoveAllAlpha("/Users/umiringo/Project/PngGenerator/Input/test2/line.png");
     }
     private void RemoveAllAlpha(string linePath)
     {
@@ -78,7 +78,12 @@ public class PngGenerator : MonoBehaviour
         byte[] lineRaw = lineTex.GetRawTextureData();
         UnityEngine.Debug.Log("Scan Start... line size = " + lineRaw.Length);
         for(int i = 0; i < lineRaw.Length/4; ++i) {
-            if(lineRaw[i*4] < 255 && lineRaw[i*4] > 0) lineRaw[i*4] = 255;
+            if(lineRaw[i*4] < 140 && lineRaw[i*4] > 0) {
+                //UnityEngine.Debug.Log("fuck alpha = " + lineRaw[i*4]);
+                lineRaw[i*4] = 0;
+            } else if(lineRaw[i*4] > 140) {
+                lineRaw[i*4] = 255;
+            }
         }
         Texture2D texture= new Texture2D(width, height, TextureFormat.ARGB32, false);
         texture.filterMode = FilterMode.Point;
@@ -86,6 +91,121 @@ public class PngGenerator : MonoBehaviour
         byte[] savePngBytes = texture.EncodeToPNG();
         SavePng(savePngBytes, output, "test2_line.png");
         UnityEngine.Debug.Log("Scan Finished.");
+    }
+    public void GenerateResourceNew(string linePath)
+    {
+        UnityEngine.Debug.Log("Generating Start...");
+        Stopwatch sw = new Stopwatch();
+        sw.Start();
+        // 初始化
+        zoneCount = 1;
+        pixelsIdCount = 1;
+        pixelsList.Clear();
+        zoneList.Clear();
+        sketchList.Clear();
+        queryList = new int[width * height];
+        // 先讀取文件
+        Texture2D lineTex = LoadTexture(linePath);
+        if(lineTex == null) {
+            if(lineTex == null) UnityEngine.Debug.LogError("Generator Failed, blockPath = " + linePath);
+            return;
+        }
+        // 圖片生成為rawdata
+        byte[] lineRaw = lineTex.GetRawTextureData();
+        UnityEngine.Debug.Log("Scan Start... line size = " + lineRaw.Length);
+        for(int x = 0; x < width; ++x) {
+            for(int y = 0; y < height; ++y) {
+                int i = y*width + x;
+                if(GetAlpha(lineRaw, i*4) < 255) continue; // 已经统计过了
+                if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
+                FloodFillNew(x, y, lineRaw);
+            }
+        }
+        // 對已經記錄的表進行掃描，寻找最小内切正方形, 確定坐標和size
+        GenerateInnerBox(lineRaw);
+        //根據結果生成json文件
+        GenerateJson();
+        //根據結果從新計算顔色生成假圖
+        GenerateFakeNew(lineRaw);
+        sw.Stop();
+        UnityEngine.Debug.Log("Generating End... time = " + sw.ElapsedMilliseconds);
+    }
+    private void FloodFillNew(int x, int y, byte[] lineRaw)
+    {
+        int offset = width * y + x;
+        byte r = lineRaw[4 * offset + 1];
+        byte g = lineRaw[4 * offset + 2];
+        byte b = lineRaw[4 * offset + 3];
+        Queue<int> queue = new Queue<int>();
+        Queue<int> queue2 = new Queue<int>();
+        List<int> tmpPixels = new List<int>();
+        queue.Enqueue(x);
+        queue2.Enqueue(y);
+        int count = 0;
+        int mark = 138;
+        while (queue.Count > 0) {
+            int num = queue.Dequeue();
+            int num2 = queue2.Dequeue();
+            if (num2 - 1 > -1) {
+                int num3 = width* (num2 - 1) + num;
+                int num4 = num3 * 4;
+                if( CheckColor(lineRaw, num4, r, g, b) && GetAlpha(lineRaw, num4) == 255) {
+                    queue.Enqueue(num);
+                    queue2.Enqueue(num2 - 1);
+                    ++count;
+                    tmpPixels.Add(num3);
+                    lineRaw[num4] = (byte)mark;
+                }
+            }
+            if (num + 1 < width) {
+                int num3 = width * num2 + (num + 1);
+                int num4 = num3 * 4;
+                if( CheckColor(lineRaw, num4, r, g, b) &&  GetAlpha(lineRaw, num4) == 255) {
+                    queue.Enqueue(num+1);
+                    queue2.Enqueue(num2);
+                    ++count;
+                    tmpPixels.Add(num3);
+                    lineRaw[num4] = (byte)mark;
+                }
+            }
+            if (num - 1 > -1) {
+                int num3 = width * num2 + (num - 1);
+                int num4 = num3 * 4;
+                if( CheckColor(lineRaw, num4, r, g, b) &&  GetAlpha(lineRaw, num4) == 255) {
+                    queue.Enqueue(num-1);
+                    queue2.Enqueue(num2);
+                    ++count;
+                    tmpPixels.Add(num3);
+                    lineRaw[num4] = (byte)mark;
+                }
+            }
+            if (num2 + 1 < height) {
+                int num3 = width * (num2 + 1) + num;
+                int num4 = num3 * 4;
+                if( CheckColor(lineRaw, num4, r, g, b) &&  GetAlpha(lineRaw, num4) == 255) {
+                    queue.Enqueue(num);
+                    queue2.Enqueue(num2+1);
+                    ++count;
+                    tmpPixels.Add(num3);
+                    lineRaw[num4] = (byte)mark;
+                }
+            }
+        }
+        if(count > pixelSize) {
+            var clr = new Color32(r, g, b, 255);
+            var pi = new PixelsInfo();
+            pi.clr = clr;
+            pi.pixels = tmpPixels;
+            pi.pixelsId = pixelsIdCount;
+            pixelsList.Add(pi);
+            pixelsIdCount++;
+            foreach(var p in tmpPixels) {
+                queryList[p] = pi.pixelsId;
+            }
+        } else {
+            
+            //UnityEngine.Debug.Log("[FloodFill] small area! size = " + count);
+        }
     }
     public void GenerateResource(string blockPath, string linePath)
     {
@@ -268,7 +388,7 @@ public class PngGenerator : MonoBehaviour
             }
         } else {
             foreach(var tp in tmpPixels) {
-                lineRaw[tp * 4] = 150;
+                lineRaw[tp * 4] = 255;
                 lineRaw[tp * 4 + 1] = 0;
                 lineRaw[tp * 4 + 2] = 0;
                 lineRaw[tp * 4 + 3] = 0;
@@ -329,12 +449,7 @@ public class PngGenerator : MonoBehaviour
             }
             zoneList.Add(zi);
         } else {
-            foreach(var p in pixels.pixels) {
-                lineRaw[p*4] = 255;
-                lineRaw[p*4 + 1] = pixels.clr.r;
-                lineRaw[p*4 + 2] = pixels.clr.g;
-                lineRaw[p*4 + 3] = pixels.clr.b;
-            }
+            UnityEngine.Debug.Log("[InnerBox] small inner box area! box = " + box);
         }
     }
     private void GenerateJson()
@@ -376,6 +491,23 @@ public class PngGenerator : MonoBehaviour
         UnityEngine.Debug.Log("Sketch Count = " + sketchList.Count);
         UnityEngine.Debug.Log("Zone Count = " + zoneList.Count);
         SaveJson<PngJsonData>(pjd, "E:/Projects/PngGenerator/Output/mark.json");
+    }
+    private void GenerateFakeNew(byte[] lineRaw)
+    {
+        foreach(var z in zoneList) {
+            Color32 clr = GenerateColor(z.sketchId, z.zoneId);
+            foreach(var p in z.pixels) {
+                lineRaw[p * 4] = 255;
+                lineRaw[p * 4 + 1] = clr.r;
+                lineRaw[p * 4 + 2] = clr.g;
+                lineRaw[p * 4 + 3] = clr.b; 
+            }
+        }
+        Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, false);
+        texture.filterMode = FilterMode.Point;
+        texture.LoadRawTextureData(lineRaw);
+        byte[] savePngBytes = texture.EncodeToPNG();
+        SavePng(savePngBytes, output, "fake.png");
     }
     private void GenerateFake(byte[] blockRaw, byte[] lineRaw)
     {

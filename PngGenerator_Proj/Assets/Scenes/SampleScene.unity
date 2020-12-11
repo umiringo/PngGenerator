@@ -160,13 +160,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d76991d47cb41349a4fd6af971d134d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  input: 
-  output: E:/Projects/PngGenerator/Output
+  input: /Users/umiringo/Project/PngGenerator/Input
+  output: /Users/umiringo/Project/PngGenerator/Output
   alphaLimit: 140
   alphaLow: 0
   alphaHigh: 0
   minSize: 2
-  pixelSize: 10
+  pixelSize: 9
 --- !u!20 &519420031
 Camera:
   m_ObjectHideFlags: 0
