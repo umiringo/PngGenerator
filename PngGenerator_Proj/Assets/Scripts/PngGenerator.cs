@@ -27,6 +27,9 @@ public class PngGenerator : MonoBehaviour
         public int x;
         public int y;
         public List<int> pixels = new List<int>();
+        public int bx;
+        public int by;
+        public int box;
     }
     public class PixelsInfo 
     {
@@ -203,7 +206,6 @@ public class PngGenerator : MonoBehaviour
                 queryList[p] = pi.pixelsId;
             }
         } else {
-            
             //UnityEngine.Debug.Log("[FloodFill] small area! size = " + count);
         }
     }
@@ -397,7 +399,7 @@ public class PngGenerator : MonoBehaviour
     }
     private void GenerateInnerBox(byte[] lineRaw)
     {
-        UnityEngine.Debug.Log("PixelsList = " + pixelsList.Count);
+        //UnityEngine.Debug.Log("PixelsList = " + pixelsList.Count);
         foreach(var pi in pixelsList) {
             GenerateInner(pi, lineRaw);
         }
@@ -411,24 +413,32 @@ public class PngGenerator : MonoBehaviour
             int w = 0;
             int h = 0;
             int i = 1;
+            // while(true) {
+            //     if(CheckList(pixels.pixelsId, p + i)) {
+            //         w++;
+            //         i++;
+            //     } else {
+            //         break;
+            //     }
+            // }
+            // i = 1;
+            // while(true) {
+            //     if(CheckList(pixels.pixelsId, p + i*width)) {
+            //         h++;
+            //         i++;
+            //     } else {
+            //         break;
+            //     }
+            // }
+            int k = 1;
             while(true) {
-                if(CheckList(pixels.pixelsId, p + i)) {
-                    w++;
-                    i++;
-                } else {
-                    break;
+                for(int m = 0; m < k; ++m) {
+                    if(!CheckList(pixels.pixelsId, p + k + m * width)) break;
+                    if(!CheckList(pixels.pixelsId, p + m + k * width)) break;
                 }
+                k++;
             }
-            i = width;
-            while(true) {
-                if(CheckList(pixels.pixelsId, p + i)) {
-                    h++;
-                    i++;
-                } else {
-                    break;
-                }
-            }
-            int low = w > h ? h : w;
+            int low = k - 1;
             if(low > box) {
                 mx = p % width;
                 my = p / width;
@@ -440,8 +450,14 @@ public class PngGenerator : MonoBehaviour
             zi.zoneId = zoneCount;
             ++zoneCount;
             zi.x = mx + box / 2;
-            zi.y = my + box / 2;
-            zi.size = box;
+            zi.y = height - (my + box / 2);
+            zi.bx = mx;
+            zi.by = my;
+            zi.box = box;
+            if(zi.x > width) UnityEngine.Debug.LogWarning("x out of bound!");
+            if(zi.y > height) UnityEngine.Debug.LogWarning("y out of bound! my = " + my + ", box = " + box);
+            var bound = box/2 == 0 ? 1 : box/2;
+            zi.size = bound > 80 ? 80 : bound;
             zi.sketchColor = pixels.clr;
             zi.pixels = pixels.pixels;
             if(!sketchList.Contains(zi.sketchColor)) {
@@ -454,19 +470,19 @@ public class PngGenerator : MonoBehaviour
     }
     private void GenerateJson()
     {
-        System.Random rd = new System.Random();
-        int index = 0;
-        Color32 temp;
-        for (int i = 0; i < sketchList.Count; i++)
-        {
-            index = rd.Next(0, sketchList.Count - 1);
-            if (index != i)
-            {
-                temp = sketchList[i];
-                sketchList[i] = sketchList[index];
-                sketchList[index] = temp;
-            }
-        }
+        // System.Random rd = new System.Random();
+        // int index = 0;
+        // Color32 temp;
+        // for (int i = 0; i < sketchList.Count; i++)
+        // {
+        //     index = rd.Next(0, sketchList.Count - 1);
+        //     if (index != i)
+        //     {
+        //         temp = sketchList[i];
+        //         sketchList[i] = sketchList[index];
+        //         sketchList[index] = temp;
+        //     }
+        // }
         PngJsonData pjd = new PngJsonData();
         for(int i = 0; i < sketchList.Count; ++i) {
             SketchJsonData sjd = new SketchJsonData();
@@ -490,17 +506,26 @@ public class PngGenerator : MonoBehaviour
         }
         UnityEngine.Debug.Log("Sketch Count = " + sketchList.Count);
         UnityEngine.Debug.Log("Zone Count = " + zoneList.Count);
-        SaveJson<PngJsonData>(pjd, "E:/Projects/PngGenerator/Output/mark.json");
+        SaveJson<PngJsonData>(pjd, output + "/mark.json");
     }
     private void GenerateFakeNew(byte[] lineRaw)
     {
         foreach(var z in zoneList) {
             Color32 clr = GenerateColor(z.sketchId, z.zoneId);
-            foreach(var p in z.pixels) {
-                lineRaw[p * 4] = 255;
-                lineRaw[p * 4 + 1] = clr.r;
-                lineRaw[p * 4 + 2] = clr.g;
-                lineRaw[p * 4 + 3] = clr.b; 
+            // foreach(var p in z.pixels) {
+            //     lineRaw[p * 4] = 255;
+            //     lineRaw[p * 4 + 1] = clr.r;
+            //     lineRaw[p * 4 + 2] = clr.g;
+            //     lineRaw[p * 4 + 3] = clr.b; 
+            // }
+            for(int i = 0; i < z.box; ++i) {
+                for(int j = 0; j < z.box; ++j) {
+                    int offset = (z.bx + i) + (z.by + j) * width;
+                    lineRaw[offset*4] = 255;
+                    lineRaw[offset*4+1] = clr.r;
+                    lineRaw[offset*4+2] = clr.g;
+                    lineRaw[offset*4+3] = clr.b;
+                }
             }
         }
         Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, false);
