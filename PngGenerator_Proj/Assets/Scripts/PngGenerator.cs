@@ -727,7 +727,7 @@ public class PngGenerator : MonoBehaviour
         for(int x = 0; x < width; ++x) {
             for(int y = height - 1; y >= 0; --y) {
                 int i = y*width + x;
-                if(GetAlpha(lineRaw, i*4) < 255) continue; // 已经统计过了
+                if(GetAlpha(lineRaw, i*4) < 255) continue;
                 if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
                 FloodFillNew(x, y, lineRaw);
             }
@@ -741,7 +741,7 @@ public class PngGenerator : MonoBehaviour
         for(int x = 0; x < width; ++x) {
             for(int y = height - 1; y >= 0; --y) {
                 int i = y*width + x;
-                if(GetAlpha(lineRaw, i*4) < 255) continue; // 已经统计过了
+                if(GetAlpha(lineRaw, i*4) < 255) continue;
                 if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
                 FloodFillNew(x, y, lineRaw);
             }
