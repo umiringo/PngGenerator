@@ -9,14 +9,6 @@ using System.Diagnostics;
 public class PngGenerator : MonoBehaviour
 {
     #pragma warning disable 0649
-        // [SerializeField] string input;
-        // [SerializeField] string output;
-        // [SerializeField] int minSize;
-        // [SerializeField] int pixelSize;
-        [SerializeField] InputField inputField;
-        [SerializeField] InputField outputField;
-        [SerializeField] InputField pixelsField;
-        [SerializeField] InputField boxField;
         [SerializeField] Button button;
         [SerializeField] Text btnText;
         [SerializeField] Text logText;
@@ -75,23 +67,26 @@ public class PngGenerator : MonoBehaviour
     private int pixelsIdCount;
     private int width = 1536;
     private int height = 1536;
-    void Start()
+    IEnumerator Start()
     {
-       pixelsField.text = "10";
-       boxField.text = "2";
-       inputField.text = "/Users/umiringo/Desktop/in";
-       outputField.text = "/Users/umiringo/Desktop/out";
-       EnableBtn();
+        DisableBtn();
+        yield return new WaitForSeconds(1f);
+        UnityEngine.Debug.Log("PngGenerator : " + System.IO.Directory.GetCurrentDirectory());
+        Generate();
     }
     public void Generate()
     {
         DisableBtn();
-        input = inputField.text;
-        output = outputField.text;
-        minPixels = Int32.Parse(pixelsField.text);
-        minBox = Int32.Parse(boxField.text);
+        input = Path.Combine(System.IO.Directory.GetCurrentDirectory(), "Input");
+        output = Path.Combine(System.IO.Directory.GetCurrentDirectory(), "Output");
+        minPixels = 10;
+        minBox = 2;
         StartCoroutine(GenerateCoroutine());
 
+    }
+    public void OnBtnHandler()
+    {
+        Application.Quit();
     }
     IEnumerator GenerateCoroutine()
     {
@@ -135,12 +130,12 @@ public class PngGenerator : MonoBehaviour
     private void DisableBtn()
     {
         button.interactable = false;
-        btnText.text = "检查中...";
+        btnText.text = "生成中...";
     }
     private void EnableBtn()
     {
         button.interactable = true;
-        btnText.text = "开始检查";
+        btnText.text = "关闭";
     }
     private void ShowInfoLog(string info)
     {
@@ -151,51 +146,6 @@ public class PngGenerator : MonoBehaviour
     {
         logStr += "<color=#F83434>" + error + "\n</color>";
         logText.text = logStr;
-    }
-    public void ReduceColor(string level, string linePath)
-    {
-        Stopwatch sw = new Stopwatch();
-        sw.Start();
-        // 初始化
-        zoneCount = 1;
-        pixelsIdCount = 1;
-        int smallPixels = 0;
-        pixelsList.Clear();
-        zoneList.Clear();
-        sketchList.Clear();
-        queryList = new int[width * height];
-        // 先讀取文件
-        Texture2D lineTex = LoadTexture(linePath);
-        if(lineTex == null) return;
-        // 圖片生成為rawdata
-        byte[] lineRaw = lineTex.GetRawTextureData();
-        UnityEngine.Debug.Log(level + " Scan Start... line size = " + lineRaw.Length);
-        // for(int x = 0; x < width; ++x) {
-        //     for(int y = 0; y < height; ++y) {
-        //         int i = y*width + x;
-        //         if(GetAlpha(lineRaw, i*4) < 255) continue; 
-        //         if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
-        //         FloodFillNew(x, y, lineRaw, ref smallPixels);
-        //     }
-        // }
-        UnityEngine.Debug.Log("smallPixels = " + smallPixels);
-       Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, false);
-        texture.filterMode = FilterMode.Point;
-        texture.LoadRawTextureData(lineRaw);
-        byte[] savePngBytes = texture.EncodeToPNG();
-        SavePng(savePngBytes, output + "/" + level, level + "_zone.png");
-    }
-    public byte ColorSplit(byte r)
-    {
-        // if(r < 16) return 0;
-        // else if(r >= 16 && r < 56) return 16;
-        // else if(r >= 56 && r < 96) return 56;
-        // else if(r >= 96 && r < 136) return 96;
-        // else if(r >= 136 && r < 176) return 136;
-        // else if(r >= 176 && r < 216) return 176;
-        // else return 216;
-        var levs = Mathf.Ceil(Mathf.Pow(300, 1.0f/3.0f));
-        return (byte)Mathf.RoundToInt(Mathf.Round(((float)r / 255.0f) * levs) / levs * 255.0f);
     }
     public string GenerateResourceNew(string level, string linePath)
     {
@@ -828,13 +778,5 @@ public class PngGenerator : MonoBehaviour
 
             return hash1 + (hash2*1566083941);
         }
-    }
-    public void OpenInput()
-    {
-        Application.OpenURL(@"file://" + inputField.text);
-    }
-    public void OpenOutput()
-    {
-        Application.OpenURL(@"file://" + outputField.text);
     }
 }
