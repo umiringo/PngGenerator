@@ -79,8 +79,8 @@ public class PngGenerator : MonoBehaviour
     {
        pixelsField.text = "10";
        boxField.text = "2";
-       inputField.text = "E:\\Projects\\PngGenerator\\Input";
-       outputField.text = "E:\\Projects\\PngGenerator\\Output";
+       inputField.text = "/Users/umiringo/Desktop/in";
+       outputField.text = "/Users/umiringo/Desktop/out";
        EnableBtn();
     }
     public void Generate()
@@ -121,9 +121,7 @@ public class PngGenerator : MonoBehaviour
             yield return null;
             var level = Path.GetFileNameWithoutExtension(p);
             ShowInfoLog("开始处理" + level + "...");
-            ReduceColor(level, p);
-            var ret = "";
-           // var ret = GenerateResourceNew(level, p);
+            var ret = GenerateResourceNew(level, p);
             if(ret != String.Empty) {
                 ShowErrorLog(level + "数据错误：" + ret);
                 yield return null;
@@ -172,20 +170,20 @@ public class PngGenerator : MonoBehaviour
         // 圖片生成為rawdata
         byte[] lineRaw = lineTex.GetRawTextureData();
         UnityEngine.Debug.Log(level + " Scan Start... line size = " + lineRaw.Length);
-        for(int x = 0; x < width; ++x) {
-            for(int y = 0; y < height; ++y) {
-                int i = y*width + x;
-                if(GetAlpha(lineRaw, i*4) < 255) continue; 
-                if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
-                FloodFillNew(x, y, lineRaw, ref smallPixels);
-            }
-        }
+        // for(int x = 0; x < width; ++x) {
+        //     for(int y = 0; y < height; ++y) {
+        //         int i = y*width + x;
+        //         if(GetAlpha(lineRaw, i*4) < 255) continue; 
+        //         if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
+        //         FloodFillNew(x, y, lineRaw, ref smallPixels);
+        //     }
+        // }
         UnityEngine.Debug.Log("smallPixels = " + smallPixels);
        Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, false);
         texture.filterMode = FilterMode.Point;
         texture.LoadRawTextureData(lineRaw);
         byte[] savePngBytes = texture.EncodeToPNG();
-        SavePng(savePngBytes, output + "/" + level, level + "_zone1.png");
+        SavePng(savePngBytes, output + "/" + level, level + "_zone.png");
     }
     public byte ColorSplit(byte r)
     {
@@ -221,6 +219,16 @@ public class PngGenerator : MonoBehaviour
         byte[] lineRaw = lineTex.GetRawTextureData();
         int hash = Mathf.Abs(GetStableHashCode(level)) % 4;
         UnityEngine.Debug.Log(level + " Scan Start... line size = " + lineRaw.Length + ", hash = " + hash);
+        for(int x = 0; x < width; ++x) {
+            for(int y = 0; y < height; ++y) {
+                int i = y*width + x;
+                if(GetAlpha(lineRaw, i*4) < 255) {
+                    lineRaw[i*4 + 1] = 0;
+                    lineRaw[i*4 + 2] = 0;
+                    lineRaw[i*4 + 3] = 0;
+                }
+            }
+        }
         if(hash == 0) {
             for(int x = 0; x < width; ++x) {
                 for(int y = 0; y < height; ++y) {
@@ -268,7 +276,7 @@ public class PngGenerator : MonoBehaviour
         ShowInfoLog("<color=#03C5FF>" + level + "检查完成。</color>颜色种类：" + sketches + ", 色块数量: " + zones + "。 <color=#F3F23A>像素极少区域数：" + smallPixels + ", 内切过小区域数：" + smallBox + "</color>"  + ", 耗时：" + sw.ElapsedMilliseconds + "毫秒");
         return string.Empty;
     }
-    private void FloodFillNew(int x, int y, byte[] lineRaw, ref int smallPixels)
+    private void FloodFillNew(int x, int y, byte[] lineRaw)
     {
         int offset = width * y + x;
         byte r = lineRaw[4 * offset + 1];
@@ -281,107 +289,56 @@ public class PngGenerator : MonoBehaviour
         queue2.Enqueue(y);
         int count = 0;
         int mark = 100;
-        int maxX = 0;
-        int minX = int.MaxValue;
-        int maxY = 0;
-        int minY = int.MaxValue;
         while (queue.Count > 0) {
             int num = queue.Dequeue();
             int num2 = queue2.Dequeue();
             if (num2 - 1 > -1) {
                 int num3 = width* (num2 - 1) + num;
                 int num4 = num3 * 4;
-                if( ((CheckColor(lineRaw, num4, r, g, b) && GetAlpha(lineRaw, num4) == 255)) || ((CheckColor(lineRaw, num4, 0, 0, 0) && GetAlpha(lineRaw, num4) == 0))) {
-                    queue.Enqueue(num);
-                    queue2.Enqueue(num2 - 1);
+                if( ((CheckColor(lineRaw, num4, r, g, b) && GetAlpha(lineRaw, num4) == 255)) || CheckColor(lineRaw, num4, 0, 0, 0) ) {
+                    if(!CheckColor(lineRaw, num4, 0, 0, 0)) {
+                        queue.Enqueue(num);
+                        queue2.Enqueue(num2 - 1);
+                    }
                     ++count;
                     tmpPixels.Add(num3);
                     lineRaw[num4 + 1] = r;
                     lineRaw[num4 + 2] = g;
                     lineRaw[num4 + 3] = b;
                     lineRaw[num4] = (byte)mark;
-                    if(num > maxX) maxX = num;
-                    if(num < minX) minX = num;
-                    if(num2-1 > maxY) maxY = num2-1;
-                    if(num2-1 < minY) minY = num2-1;
                 }
             }
             if (num + 1 < width) {
                 int num3 = width * num2 + (num + 1);
                 int num4 = num3 * 4;
-                if( ((CheckColor(lineRaw, num4, r, g, b) && GetAlpha(lineRaw, num4) == 255)) || ((CheckColor(lineRaw, num4, 0, 0, 0) && GetAlpha(lineRaw, num4) == 0))) {
-                    queue.Enqueue(num+1);
-                    queue2.Enqueue(num2);
+                if( ((CheckColor(lineRaw, num4, r, g, b) && GetAlpha(lineRaw, num4) == 255)) || CheckColor(lineRaw, num4, 0, 0, 0) ) {
+                    if(!CheckColor(lineRaw, num4, 0, 0, 0)) {
+                        queue.Enqueue(num+1);
+                        queue2.Enqueue(num2);
+                    }
                     ++count;
                     tmpPixels.Add(num3);
                     lineRaw[num4 + 1] = r;
                     lineRaw[num4 + 2] = g;
                     lineRaw[num4 + 3] = b;
                     lineRaw[num4] = (byte)mark;
-                    if(num+1 > maxX) maxX = num;
-                    if(num+1 < minX) minX = num;
-                    if(num2 > maxY) maxY = num2-1;
-                    if(num2 < minY) minY = num2-1;
                 }
             }
             if (num - 1 > -1) {
                 int num3 = width * num2 + (num - 1);
                 int num4 = num3 * 4;
-                if( ((CheckColor(lineRaw, num4, r, g, b) && GetAlpha(lineRaw, num4) == 255)) || ((CheckColor(lineRaw, num4, 0, 0, 0) && GetAlpha(lineRaw, num4) == 0))) {
-                    queue.Enqueue(num-1);
-                    queue2.Enqueue(num2);
+                if( ((CheckColor(lineRaw, num4, r, g, b) && GetAlpha(lineRaw, num4) == 255)) || CheckColor(lineRaw, num4, 0, 0, 0) ) {
+                    if(!CheckColor(lineRaw, num4, 0, 0, 0)) {
+                        queue.Enqueue(num-1);
+                        queue2.Enqueue(num2);
+                    }
                     ++count;
                     tmpPixels.Add(num3);
                     lineRaw[num4 + 1] = r;
                     lineRaw[num4 + 2] = g;
                     lineRaw[num4 + 3] = b;
                     lineRaw[num4] = (byte)mark;
-                    if(num-1 > maxX) maxX = num;
-                    if(num-1 < minX) minX = num;
-                    if(num2 > maxY) maxY = num2-1;
-                    if(num2 < minY) minY = num2-1;
                 }
-            }
-            if (num2 + 1 < height) {
-                int num3 = width * (num2 + 1) + num;
-                int num4 = num3 * 4;
-                if( ((CheckColor(lineRaw, num4, r, g, b) && GetAlpha(lineRaw, num4) == 255)) || ((CheckColor(lineRaw, num4, 0, 0, 0) && GetAlpha(lineRaw, num4) == 0))) {
-                    queue.Enqueue(num);
-                    queue2.Enqueue(num2+1);
-                    ++count;
-                    tmpPixels.Add(num3);
-                    lineRaw[num4 + 1] = r;
-                    lineRaw[num4 + 2] = g;
-                    lineRaw[num4 + 3] = b;
-                    lineRaw[num4] = (byte)mark;
-                    if(num > maxX) maxX = num;
-                    if(num < minX) minX = num;
-                    if(num2+1 > maxY) maxY = num2-1;
-                    if(num2+1 < minY) minY = num2-1;
-                }
-            }
-        }
-        if(count > minPixels) {
-            var clr = new Color32(r, g, b, 255);
-            var pi = new PixelsInfo();
-            pi.clr = clr;
-            pi.pixels = tmpPixels;
-            pi.pixelsId = pixelsIdCount;
-            pixelsList.Add(pi);
-            pixelsIdCount++;
-            pi.x = minX;
-            pi.y = minY;
-            pi.row = maxX - minX;
-            pi.col = maxY - minY;
-            if(pi.row < 0) pi.row = 0;
-            if(pi.col < 0) pi.col = 0;
-            foreach(var p in tmpPixels) {
-                queryList[p] = pi.pixelsId;
-            }
-        } else {
-            smallPixels++;
-            foreach(var p in tmpPixels) {
-                SetColor(lineRaw, p*4, 0, 0, 0, 255);
             }
         }
     }
@@ -402,6 +359,11 @@ public class PngGenerator : MonoBehaviour
         int minX = int.MaxValue;
         int maxY = 0;
         int minY = int.MaxValue;
+        if( CheckColor(lineRaw, offset*4, r, g, b) && GetAlpha(lineRaw, offset*4) == 255) {
+            ++count;
+            tmpPixels.Add(offset);
+            lineRaw[offset*4] = (byte)mark;
+        }
         while (queue.Count > 0) {
             int num = queue.Dequeue();
             int num2 = queue2.Dequeue();
@@ -476,8 +438,8 @@ public class PngGenerator : MonoBehaviour
             pixelsIdCount++;
             pi.x = minX;
             pi.y = minY;
-            pi.row = maxX - minX;
-            pi.col = maxY - minY;
+            pi.row = maxX - minX + 1;
+            pi.col = maxY - minY + 1;
             foreach(var p in tmpPixels) {
                 queryList[p] = pi.pixelsId;
             }
@@ -599,8 +561,8 @@ public class PngGenerator : MonoBehaviour
             pixelsIdCount++;
             pi.x = minX;
             pi.y = minY;
-            pi.row = maxX - minX;
-            pi.col = maxY - minY;
+            pi.row = maxX - minX + 1;
+            pi.col = maxY - minY + 1;
             foreach(var p in tmpPixels) {
                 queryList[p] = pi.pixelsId;
             }
@@ -683,7 +645,7 @@ public class PngGenerator : MonoBehaviour
                 }
             }
         }
-        if(box > minBox) {
+        if(box >= minBox) {
             ZoneInfo zi = new ZoneInfo();
             zi.zoneId = zoneCount;
             ++zoneCount;
@@ -746,33 +708,48 @@ public class PngGenerator : MonoBehaviour
     }
     private void GenerateFakeNew(string level, byte[] lineRaw)
     {
-        // foreach(var z in zoneList) {
-        //     Color32 clr = GenerateColor(z.sketchId, z.zoneId);
-        //     foreach(var p in z.pixels) {
-        //         lineRaw[p * 4] = 255;
-        //         lineRaw[p * 4 + 1] = clr.r;
-        //         lineRaw[p * 4 + 2] = clr.g;
-        //         lineRaw[p * 4 + 3] = clr.b; 
-        //     }
-        // }
-        // for(int x = 0; x < width; ++x) {
-        //     for(int y = 0; y < height; ++y) {
-        //         int i = y*width + x;
-        //         if(GetAlpha(lineRaw, i*4) < 50) continue; // 已经统计过了
-        //         if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
-        //         FloodFillRemoveBlack(x, y, lineRaw);
-        //     }
-        // }
-        for(int x = 0; x < width; ++x) {
-            for(int y = 0; y < height; ++y) {
-                int i = y*width + x;
-                lineRaw[i * 4] = 0;
-            }
-        }
         foreach(var z in zoneList) {
             Color32 clr = GenerateColor(z.sketchId, z.zoneId);
             foreach(var p in z.pixels) {
                 lineRaw[p * 4] = 255;
+                lineRaw[p * 4 + 1] = clr.r;
+                lineRaw[p * 4 + 2] = clr.g;
+                lineRaw[p * 4 + 3] = clr.b; 
+            }
+        }
+        for(int x = 0; x < width; ++x) {
+            for(int y = height - 1; y >= 0; --y) {
+                int i = y*width + x;
+                lineRaw[i*4] = 255;
+            }
+        }
+
+        for(int x = 0; x < width; ++x) {
+            for(int y = height - 1; y >= 0; --y) {
+                int i = y*width + x;
+                if(GetAlpha(lineRaw, i*4) < 255) continue; // 已经统计过了
+                if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
+                FloodFillNew(x, y, lineRaw);
+            }
+        }
+        for(int x = 0; x < width; ++x) {
+            for(int y = height - 1; y >= 0; --y) {
+                int i = y*width + x;
+                lineRaw[i*4] = 255;
+            }
+        }
+        for(int x = 0; x < width; ++x) {
+            for(int y = height - 1; y >= 0; --y) {
+                int i = y*width + x;
+                if(GetAlpha(lineRaw, i*4) < 255) continue; // 已经统计过了
+                if(CheckColor(lineRaw, i*4, 0, 0, 0)) continue;
+                FloodFillNew(x, y, lineRaw);
+            }
+        }
+        for(int x = 0; x < width; ++x) {
+            for(int y = height - 1; y >= 0; --y) {
+                int i = y*width + x;
+                lineRaw[i*4] = 255;
             }
         }
         Texture2D texture = new Texture2D(width, height, TextureFormat.ARGB32, false);
